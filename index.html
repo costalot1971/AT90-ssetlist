@@ -453,7 +453,7 @@ async function doSave(){
   }catch(e){toast("Couldn't save: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Save show"}
 }
-const NEED_VERSION=3;
+const NEED_VERSION=4;
 const OLD_SCRIPT="The Apps Script running is an older version. In Apps Script choose Deploy → Manage deployments → pencil icon → Version: New version → Deploy.";
 function reportPositions(j){
   const g=S.gig,p=j.positions;
