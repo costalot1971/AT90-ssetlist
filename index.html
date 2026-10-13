@@ -80,6 +80,11 @@ h1 span{color:var(--accent)}
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .card.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .card.dragging{opacity:.4}
+/* tuning flags: fixed sheet colors, dark text in both themes for contrast */
+.card.detune{background:#f4cccc;border-color:#dfa3a3}
+.card.dropd{background:#c9daf8;border-color:#97b4e6}
+.card.detune,.card.dropd{color:#1a1e23}
+.card.detune .a,.card.detune .n,.card.detune .clk,.card.dropd .a,.card.dropd .n,.card.dropd .clk{color:#4a525c}
 .card .n{font-family:var(--font-data);font-size:.75rem;color:var(--muted);padding-top:2px;min-width:1.4em}
 .card .t{font-weight:600;font-size:.92rem;line-height:1.25;min-width:0;overflow-wrap:anywhere}
 .card .a{grid-column:2;font-size:.8rem;color:var(--muted);min-width:0;overflow-wrap:anywhere}
@@ -349,7 +354,9 @@ function column(k,C,q){
   return col;
 }
 function card(id,n,C){
-  const s=S.songs[id];const c=el("div","card"+(selected===id?" sel":""));c.draggable=true;c.tabIndex=0;c.dataset.id=id;
+  const s=S.songs[id];const txt=(s.t+" "+s.a).toLowerCase();
+  const tune=txt.includes("detune")?" detune":/drop[\s-]*d\b/.test(txt)?" dropd":"";
+  const c=el("div","card"+tune+(selected===id?" sel":""));c.draggable=true;c.tabIndex=0;c.dataset.id=id;
   if(n!=null)c.append(el("span","n",n));
   c.append(el("span","t",s.t),el("span","l",s.len!=null?fmtDur(s.len):"—"),el("span","a",s.a));
   if(n!=null)c.append(el("span","clk",fmtClock(C.songStarts[id])));
