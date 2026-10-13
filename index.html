@@ -434,7 +434,7 @@ async function saveShow(){
   const mine=existing&&basis&&basis.key===showKey(g.date,g.venue)&&basis.saved===(existing.saved||"");
   if(existing&&!mine){
     const when=fmtSaved(existing.saved);
-    $("confirmText").textContent=`${existing.venue} on ${fmtDate(existing.date)} is already saved${when?` (last saved ${when})`:""}. Replace it with this set list?`;
+    $("confirmText").textContent=`${existing.venue} on ${fmtDate(existing.date)} is already saved${when?` (last saved ${when})`:""}. Replace it with this set list? This also renumbers Set Pos. on the Main tab.`;
     $("confirmBox").hidden=false;$("confirmYes").focus();render();return}
   await doSave();
 }
@@ -444,7 +444,10 @@ async function doSave(){
     lists:S.sets.map(L=>L.map(k=>[S.songs[k].t,S.songs[k].a]))};
   const btn=$("btnSave");btn.disabled=true;btn.textContent="Saving…";
   try{
-    if(mode==="live"){const j=await api("saveShow",{show,readable:setlistText()});S.venues=j.venues||S.venues;S.shows=j.shows||S.shows;ensureVenue(g.venue)}
+    if(mode==="live"){const j=await api("saveShow",{show,readable:setlistText()});S.venues=j.venues||S.venues;S.shows=j.shows||S.shows;ensureVenue(g.venue);
+      if(Array.isArray(j.songs)&&j.songs.length){setSongs(j.songs);applyLists(S.sets)}
+      const miss=(j.positions&&j.positions.missing)||[];
+      if(miss.length)setTimeout(()=>toast(`Not found in the song list, so not numbered: ${miss.join(", ")}`),2300)}
     else{show.saved=stamp();upsertLocal(show)}
     setBasis(findShow(g.date,g.venue));
     dirty=false;persist();render();toast(`Saved: ${g.venue}, ${fmtDate(g.date)}`);
