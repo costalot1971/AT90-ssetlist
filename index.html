@@ -109,7 +109,7 @@ button.primary{background:var(--accent);color:#1a1e23;border-color:var(--accent)
 .selbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;gap:8px;align-items:center;box-shadow:0 -6px 20px rgba(0,0,0,.12);z-index:5}
 .selbar .lbl{font-weight:600;margin-right:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .selbar button{padding:6px 11px}
-.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:7px;font-weight:600;z-index:6}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);max-width:min(92vw,560px);text-align:center;background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:7px;font-weight:600;z-index:6}
 @media (prefers-reduced-motion:no-preference){.card{transition:border-color .12s,box-shadow .12s}}
 
 /* saved shows bar + connection */
@@ -221,7 +221,7 @@ function toSec(t){const [h,m]=String(t||"0:0").split(":").map(Number);return (h|
 function fmtClock(sec){sec=Math.floor(sec);sec=((sec%86400)+86400)%86400;let h=Math.floor(sec/3600);const m=Math.floor(sec%3600/60),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${pad(m)} ${ap}`}
 function fmtDate(d){if(!d)return"";const [y,m,dd]=String(d).split("-").map(Number);if(!y||!m||!dd)return String(d);return new Date(y,m-1,dd).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})}
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
-function toast(t){const x=el("div","toast",t);document.body.append(x);setTimeout(()=>x.remove(),2200)}
+function toast(t,ms){document.querySelectorAll(".toast").forEach(x=>x.remove());const x=el("div","toast",t);x.setAttribute("role","status");document.body.append(x);setTimeout(()=>x.remove(),ms||2200)}
 
 /* ---------- state ---------- */
 let ROWS=[];
@@ -446,14 +446,22 @@ async function doSave(){
   try{
     if(mode==="live"){const j=await api("saveShow",{show,readable:setlistText()});S.venues=j.venues||S.venues;S.shows=j.shows||S.shows;ensureVenue(g.venue);
       if(Array.isArray(j.songs)&&j.songs.length){setSongs(j.songs);applyLists(S.sets)}
-      const miss=(j.positions&&j.positions.missing)||[];
-      if(miss.length)setTimeout(()=>toast(`Not found in the song list, so not numbered: ${miss.join(", ")}`),2300)}
+      reportPositions(j)}
     else{show.saved=stamp();upsertLocal(show)}
     setBasis(findShow(g.date,g.venue));
-    dirty=false;persist();render();toast(`Saved: ${g.venue}, ${fmtDate(g.date)}`);
+    dirty=false;persist();render();if(mode!=="live")toast(`Saved: ${g.venue}, ${fmtDate(g.date)}`);
   }catch(e){toast("Couldn't save: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Save show"}
 }
+const NEED_VERSION=3;
+const OLD_SCRIPT="The Apps Script running is an older version. In Apps Script choose Deploy → Manage deployments → pencil icon → Version: New version → Deploy.";
+function reportPositions(j){
+  const g=S.gig,p=j.positions;
+  if(!p){toast(`Saved ${g.venue}, ${fmtDate(g.date)}, but Set Pos. was not updated. ${OLD_SCRIPT}`,9000);return}
+  if(p.error){toast(`Saved ${g.venue}, ${fmtDate(g.date)}, but Set Pos. couldn't be updated: ${p.error}`,9000);return}
+  let msg=`Saved ${g.venue}, ${fmtDate(g.date)}. Set Pos. updated on the ${p.sheet||"song"} tab for ${p.placed} song${p.placed===1?"":"s"}.`;
+  if(p.missing&&p.missing.length)msg+=` Not found in the song list: ${p.missing.join(", ")}.`;
+  toast(msg,p.missing&&p.missing.length?9000:4000)}
 $("confirmYes").addEventListener("click",doSave);
 $("confirmNo").addEventListener("click",()=>{hideConfirm();$("btnSave").focus()});
 function openShow(s){
@@ -489,7 +497,8 @@ async function boot(){
   if(ONLINE){
     setConn("Loading songs from the Google Sheet…");
     try{const j=await api();mode="live";setSongs(j.songs);S.venues=j.venues||[];S.shows=j.shows||[];
-      setConn(`Connected to the band's Google Sheet · ${ROWS.length} songs`,"ok")}
+      if(!(j.version>=NEED_VERSION))setConn(`Connected, but saving won't update Set Pos. ${OLD_SCRIPT}`,"bad");
+      else setConn(`Connected to the band's Google Sheet · ${ROWS.length} songs`,"ok")}
     catch(e){mode="local";setConn(`Couldn't reach the Google Sheet (${e.message}). Showing the built-in song list; saves stay in this browser.`,"bad")}
   }else setConn("Preview mode: shows and venues save in this browser only.");
   if(mode==="local"){setSongs(RAW.map(r=>[...r]));
