@@ -107,6 +107,8 @@ button.primary{background:var(--accent);color:#1a1e23;border-color:var(--accent)
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .panel p{margin:0;color:var(--muted);font-size:.9rem;max-width:70ch}
 .panel textarea{font:.85rem/1.45 var(--font-data);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:10px;min-height:180px;width:100%;box-sizing:border-box;resize:vertical}
+.btn-link{font:600 .9rem var(--font-body);color:#1a1e23;background:var(--accent);border-radius:7px;padding:8px 14px;text-decoration:none}
+.btn-link:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .note{font-size:.85rem;color:var(--muted)}
 
@@ -179,10 +181,16 @@ button:disabled{opacity:.55;cursor:default}
   <div class="board-wrap"><div class="board" id="board"></div></div>
 
   <div class="tools">
+    <button id="btnAls">Create Al's Set List</button>
     <button id="btnCopy">Copy set list</button>
     <button id="btnImport">Update songs from sheet</button>
     <button id="btnReset">Reset to sheet order</button>
   </div>
+
+  <section class="panel" id="alsPanel" hidden>
+    <p id="alsText"></p>
+    <div class="row"><a class="btn-link" id="alsLink" href="#" target="_blank" rel="noopener">Open in Google Docs</a></div>
+  </section>
 
   <section class="panel" id="copyPanel" hidden>
     <p>Set list as text, ready to paste into a message or a new sheet tab.</p>
@@ -460,7 +468,7 @@ async function doSave(){
   }catch(e){toast("Couldn't save: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Save show"}
 }
-const NEED_VERSION=4;
+const NEED_VERSION=5;
 const OLD_SCRIPT="The Apps Script running is an older version. In Apps Script choose Deploy → Manage deployments → pencil icon → Version: New version → Deploy.";
 function reportPositions(j){
   const g=S.gig,p=j.positions;
@@ -469,6 +477,23 @@ function reportPositions(j){
   let msg=`Saved ${g.venue}, ${fmtDate(g.date)}. Set Pos. updated on the ${p.sheet||"song"} tab for ${p.placed} song${p.placed===1?"":"s"}.`;
   if(p.missing&&p.missing.length)msg+=` Not found in the song list: ${p.missing.join(", ")}.`;
   toast(msg,p.missing&&p.missing.length?9000:4000)}
+function currentShow(){const g=S.gig;return{date:g.date,venue:g.venue,start:g.start,end:g.end,sets:g.sets,breakMin:g.breakMin,gap:g.gap,
+  lists:S.sets.map(L=>L.map(k=>[S.songs[k].t,S.songs[k].a]))}}
+async function createAls(){
+  const g=S.gig;
+  if(mode!=="live"){toast("Creating Al's set list needs the planner connected to the Google Sheet.",5000);return}
+  if(!g.venue||!g.date){toast("Pick a location and date first");return}
+  if(!S.sets.some(L=>L.length)){toast("Add songs to a set first");return}
+  const b=$("btnAls");b.disabled=true;b.textContent="Creating doc…";$("alsPanel").hidden=true;
+  try{const j=await api("createAlsDoc",{show:currentShow()});
+    if(!j.doc)throw new Error(OLD_SCRIPT);
+    $("alsText").textContent=`${j.doc.reused?"Updated":"Created"} “${j.doc.name}” in the set lists folder.`;
+    $("alsLink").href=j.doc.url;$("alsPanel").hidden=false;$("copyPanel").hidden=true;$("importPanel").hidden=true;
+    if(j.doc.warning)$("alsText").textContent+=" "+j.doc.warning;
+    toast(j.doc.reused?"Al's set list updated":"Al's set list created")}
+  catch(e){toast("Couldn't create Al's set list: "+e.message,9000)}
+  finally{b.disabled=false;b.textContent="Create Al's Set List"}}
+$("btnAls").addEventListener("click",createAls);
 $("confirmYes").addEventListener("click",doSave);
 $("confirmNo").addEventListener("click",()=>{hideConfirm();$("btnSave").focus()});
 function openShow(s){
