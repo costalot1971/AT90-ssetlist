@@ -69,6 +69,8 @@ h1 span{color:var(--accent)}
 .col-head{padding:12px 12px 10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px;background:var(--surface);border-radius:10px 10px 0 0}
 .col-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .col-title h2{font-family:var(--font-display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.set-name{display:flex;align-items:center;gap:8px;min-width:0}
+.clear-set{font:700 1rem/1 var(--font-body);padding:3px 8px;border-radius:6px}
 .col-title .when{font-family:var(--font-data);font-size:.85rem;color:var(--accent);white-space:nowrap}
 .col-meta{font-size:.82rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
 .search{font:500 .9rem var(--font-body);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:6px 9px;width:100%;box-sizing:border-box;margin-top:4px}
@@ -246,7 +248,8 @@ function setSongs(rows){ROWS=rows;S.songs={};const seen={};
 function defaultLists(n){const sets=Array.from({length:n},()=>[]),b={};
   ROWS.forEach(r=>{const pos=parseFloat(r[0]),set=Math.floor(pos);if(!isNaN(pos)&&set>=1&&set<=n)(b[set]=b[set]||[]).push([pos,r.key])});
   Object.keys(b).forEach(k=>{sets[k-1]=b[k].sort((x,y)=>x[0]-y[0]).map(x=>x[1])});return sets}
-function sortLib(){S.lib.sort((a,b)=>S.songs[a].o-S.songs[b].o)}
+const byTitle=new Intl.Collator(undefined,{sensitivity:"base",numeric:true});
+function sortLib(){S.lib.sort((a,b)=>byTitle.compare(S.songs[a].t,S.songs[b].t)||byTitle.compare(S.songs[a].a,S.songs[b].a))}
 function applyLists(lists){const used=new Set();
   S.sets=Array.from({length:S.gig.sets},(_,i)=>(lists[i]||[]).filter(k=>{if(!S.songs[k]||used.has(k))return false;used.add(k);return true}));
   S.lib=Object.keys(S.songs).filter(k=>!used.has(k));sortLib()}
@@ -282,6 +285,9 @@ function move(id,to,idx){
   else{const L=S.sets[to];if(idx==null||idx>L.length)idx=L.length;if(from===to&&fi<idx)idx--;L.splice(Math.max(0,idx),0,id)}
   save();render();
 }
+function clearSet(k){const L=S.sets[k];if(!L||!L.length)return;const n=L.length;
+  S.lib.push(...L.splice(0));sortLib();if(selected&&where(selected)[0]==="lib")selected=null;
+  save();render();toast(`Moved ${n} song${n===1?"":"s"} from Set ${k+1} to the song pool`)}
 function setCount(n){n=Math.max(1,Math.min(8,n|0||1));
   while(S.sets.length<n)S.sets.push([]);
   while(S.sets.length>n){S.sets.pop().forEach(id=>S.lib.push(id))}
@@ -347,7 +353,11 @@ function column(k,C,q){
   if(isLib){tt.append(el("h2",null,"Song pool"),el("span","when",`${L.length} left`));head.append(tt);
     const s=el("input","search");s.id="q";s.type="search";s.placeholder="Search title or artist";s.value=q||"";s.setAttribute("aria-label","Search songs");
     s.addEventListener("input",()=>render());head.append(s)}
-  else{const d=C.durs[k];tt.append(el("h2",null,`Set ${k+1}`),el("span","when",fmtClock(C.starts[k])));
+  else{const d=C.durs[k];const name=el("div","set-name");
+    const clr=el("button","clear-set","←");clr.type="button";clr.disabled=!L.length;
+    clr.title=`Move every song in Set ${k+1} back to the song pool`;clr.setAttribute("aria-label",clr.title);
+    clr.addEventListener("click",()=>clearSet(k));
+    name.append(clr,el("h2",null,`Set ${k+1}`));tt.append(name,el("span","when",fmtClock(C.starts[k])));
     const m=el("div","col-meta");m.append(el("span","num",`${L.length} songs · ${fmtDur(d)}`),el("span","num","ends "+fmtClock(C.starts[k]+d)));
     head.append(tt,m);
     const share=(C.show-C.nb*C.target)/S.sets.length;const meter=el("div","bar-meter");const i=el("i");i.style.width=Math.min(100,share>0?d/share*100:0)+"%";meter.append(i);head.append(meter)}
@@ -400,7 +410,9 @@ function renderSel(){
 /* ---------- venues ---------- */
 function selectVenue(name){
   const v=findVenue(name);S.gig.venue=v?v.name:name;
-  if(v&&v.start&&v.end){S.gig.start=v.start;S.gig.end=v.end;if(v.last)toast(`Times from your last show at ${v.name} (${fmtDate(v.last)})`)}
+  if(v&&v.start&&v.end){S.gig.start=v.start;S.gig.end=v.end}
+  const n=v?parseInt(v.sets,10):0;if(n>=1&&n<=8&&n!==S.gig.sets)setCount(n);
+  if(v&&v.last&&(v.start||n))toast(`Times${n?" and sets":""} from your last show at ${v.name} (${fmtDate(v.last)})`);
   save();render()}
 function addVenue(){
   const name=$("venueNew").value.trim();if(!name){$("venueNew").focus();return}
@@ -428,7 +440,7 @@ function upsertLocal(show){
   const i=S.shows.findIndex(s=>s.date===show.date&&String(s.venue).toLowerCase()===show.venue.toLowerCase());
   if(i>-1)S.shows[i]=show;else S.shows.push(show);
   let v=findVenue(show.venue);if(!v){v={name:show.venue,start:"",end:"",last:""};S.venues.push(v)}
-  if(!v.last||show.date>=v.last){v.start=show.start;v.end=show.end;v.last=show.date}}
+  if(!v.last||show.date>=v.last){v.start=show.start;v.end=show.end;v.last=show.date;v.sets=show.sets}}
 const showKey=(date,venue)=>String(date)+"|"+String(venue).trim().toLowerCase();
 function findShow(date,venue){const k=showKey(date,venue);return S.shows.find(s=>showKey(s.date,s.venue)===k)}
 function stamp(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
@@ -534,7 +546,7 @@ async function boot(){
     catch(e){mode="local";setConn(`Couldn't reach the Google Sheet (${e.message}). Showing the built-in song list; saves stay in this browser.`,"bad")}
   }else setConn("Preview mode: shows and venues save in this browser only.");
   if(mode==="local"){setSongs(RAW.map(r=>[...r]));
-    S.venues=(d&&d.venues&&d.venues.length)?d.venues:[{name:"Scoreboard",start:"21:00",end:"00:00",last:""}];
+    S.venues=(d&&d.venues&&d.venues.length)?d.venues:[{name:"Scoreboard",start:"21:00",end:"00:00",last:"",sets:3}];
     S.shows=(d&&d.shows)||[]}
   if(d&&d.gig){S.gig={...GIG,...d.gig};applyLists(d.lists||[]);dirty=!!d.dirty;basis=d.basis||null}
   else{S.gig={...GIG};applyLists(defaultLists(S.gig.sets))}
