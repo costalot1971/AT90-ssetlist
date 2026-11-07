@@ -480,15 +480,20 @@ async function doSave(){
   }catch(e){toast("Couldn't save: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Save show"}
 }
-const NEED_VERSION=5;
+const NEED_VERSION=7;
 const OLD_SCRIPT="The Apps Script running is an older version. In Apps Script choose Deploy → Manage deployments → pencil icon → Version: New version → Deploy.";
 function reportPositions(j){
   const g=S.gig,p=j.positions;
   if(!p){toast(`Saved ${g.venue}, ${fmtDate(g.date)}, but Set Pos. was not updated. ${OLD_SCRIPT}`,9000);return}
   if(p.error){toast(`Saved ${g.venue}, ${fmtDate(g.date)}, but Set Pos. couldn't be updated: ${p.error}`,9000);return}
   let msg=`Saved ${g.venue}, ${fmtDate(g.date)}. Set Pos. updated on the ${p.sheet||"song"} tab for ${p.placed} song${p.placed===1?"":"s"}.`;
-  if(p.missing&&p.missing.length)msg+=` Not found in the song list: ${p.missing.join(", ")}.`;
-  toast(msg,p.missing&&p.missing.length?9000:4000)}
+  let long=!!(p.missing&&p.missing.length);
+  if(long)msg+=` Not found in the song list: ${p.missing.join(", ")}.`;
+  const dt=j.details;
+  if(dt&&dt.error){msg+=` Show details couldn't be updated: ${dt.error}`;long=true}
+  else if(dt){if(dt.updated&&dt.updated.length)msg+=` Show details updated: ${dt.updated.join(", ")}.`;
+    if(dt.skipped&&dt.skipped.length){msg+=` Not changed: ${dt.skipped.join("; ")}.`;long=true}}
+  toast(msg,long?9000:5000)}
 function currentShow(){const g=S.gig;return{date:g.date,venue:g.venue,start:g.start,end:g.end,sets:g.sets,breakMin:g.breakMin,gap:g.gap,
   lists:S.sets.map(L=>L.map(k=>[S.songs[k].t,S.songs[k].a]))}}
 async function createAls(){
