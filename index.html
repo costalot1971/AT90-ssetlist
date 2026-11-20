@@ -184,6 +184,7 @@ button:disabled{opacity:.55;cursor:default}
 
   <div class="tools">
     <button id="btnAls">Create Al's Set List</button>
+    <button id="btnSpotify">Update Al's Spotify</button>
     <button id="btnCopy">Copy set list</button>
     <button id="btnImport">Update songs from sheet</button>
     <button id="btnReset">Reset to sheet order</button>
@@ -214,7 +215,7 @@ button:disabled{opacity:.55;cursor:default}
    It looks like https://script.google.com/macros/s/AKfy.../exec
    Leave it empty to run in preview mode (saves stay in this browser).
    ================================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbz-2YW2xGUU50WO1m4ZfMZe2zGBrPer5FTJDNfFpap4psNDcnG9z5Au9jXEgITi5kNt/exec";
+const API_URL = "";
 
 const ONLINE=/^https:\/\/script\.google\.com\/macros\//.test(API_URL);
 const RAW=[
@@ -480,7 +481,7 @@ async function doSave(){
   }catch(e){toast("Couldn't save: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Save show"}
 }
-const NEED_VERSION=7;
+const NEED_VERSION=8;
 const OLD_SCRIPT="The Apps Script running is an older version. In Apps Script choose Deploy → Manage deployments → pencil icon → Version: New version → Deploy.";
 function reportPositions(j){
   const g=S.gig,p=j.positions;
@@ -511,6 +512,20 @@ async function createAls(){
   catch(e){toast("Couldn't create Al's set list: "+e.message,9000)}
   finally{b.disabled=false;b.textContent="Create Al's Set List"}}
 $("btnAls").addEventListener("click",createAls);
+async function updateSpotify(){
+  if(mode!=="live"){toast("Updating Al's Spotify needs the planner connected to the Google Sheet.",5000);return}
+  if(!S.sets.some(L=>L.length)){toast("Add songs to a set first");return}
+  const b=$("btnSpotify");b.disabled=true;b.textContent="Updating Spotify…";
+  try{const j=await api("updateSpotify",{show:currentShow()});
+    if(!j.spotify)throw new Error(OLD_SCRIPT);
+    const r=j.spotify;let msg=`Al's Spotify updated: ${r.placed} song${r.placed===1?"":"s"} now in set order.`;
+    if(r.others)msg+=` ${r.others} other track${r.others===1?"":"s"} now after the set list.`;
+    if(r.missing.length)msg+=` Not found in the playlist: ${r.missing.join(", ")}.`;
+    if(r.partial.length)msg+=` Only part of these medleys was found: ${r.partial.join(", ")}.`;
+    toast(msg,r.missing.length||r.partial.length?12000:5000)}
+  catch(e){toast("Couldn't update Al's Spotify: "+e.message,10000)}
+  finally{b.disabled=false;b.textContent="Update Al's Spotify"}}
+$("btnSpotify").addEventListener("click",updateSpotify);
 $("confirmYes").addEventListener("click",doSave);
 $("confirmNo").addEventListener("click",()=>{hideConfirm();$("btnSave").focus()});
 function openShow(s){
